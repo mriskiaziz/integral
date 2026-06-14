@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req, { params }) {
   const { answers, userId } = await req.json();
   const session = await prisma.examSession.findUnique({

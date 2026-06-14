@@ -1,34 +1,34 @@
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { Eye, UserPlus } from 'lucide-react';
-import bcrypt from 'bcryptjs';
-import Logo from '@/components/Logo';
-import SubmitButton from '@/components/SubmitButton';
-import { prisma } from '@/lib/prisma';
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Eye, UserPlus } from "lucide-react";
+import bcrypt from "bcryptjs";
+import Logo from "@/components/Logo";
+import SubmitButton from "@/components/SubmitButton";
+import { prisma } from "@/lib/prisma";
 
 async function register(formData) {
-  'use server';
+  "use server";
 
-  const name = String(formData.get('name') || '').trim();
-  const username = String(formData.get('username') || '').trim();
-  const password = String(formData.get('password') || '');
-  const confirmPassword = String(formData.get('confirmPassword') || '');
+  const name = String(formData.get("name") || "").trim();
+  const username = String(formData.get("username") || "").trim();
+  const password = String(formData.get("password") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
 
   if (!name || !username || !password) {
-    redirect('/register?error=required');
+    redirect("/register?error=required");
   }
 
   if (password.length < 6) {
-    redirect('/register?error=password');
+    redirect("/register?error=password");
   }
 
   if (password !== confirmPassword) {
-    redirect('/register?error=confirm');
+    redirect("/register?error=confirm");
   }
 
   const existingUser = await prisma.user.findUnique({ where: { username } });
   if (existingUser) {
-    redirect('/register?error=username');
+    redirect("/register?error=username");
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -37,18 +37,18 @@ async function register(formData) {
       name,
       username,
       password: hashedPassword,
-      role: 'PESERTA',
+      role: "PESERTA",
     },
   });
 
-  redirect('/login?registered=1');
+  redirect("/login?registered=1");
 }
 
 function errorText(code) {
-  if (code === 'username') return 'Username sudah digunakan.';
-  if (code === 'password') return 'Password minimal 6 karakter.';
-  if (code === 'confirm') return 'Konfirmasi password tidak sama.';
-  if (code) return 'Lengkapi semua data pendaftaran.';
+  if (code === "username") return "Username sudah digunakan.";
+  if (code === "password") return "Password minimal 6 karakter.";
+  if (code === "confirm") return "Konfirmasi password tidak sama.";
+  if (code) return "Lengkapi semua data pendaftaran.";
   return null;
 }
 
@@ -60,7 +60,7 @@ export default function RegisterPage({ searchParams }) {
       <div className="card w-full max-w-md px-8 py-10 shadow-xl">
         <div className="mb-8 text-center">
           <div className="flex justify-center">
-            <Logo className="h-16 w-auto" />
+            <Logo className="h-20 w-auto" />
           </div>
           <div className="mx-auto mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600">
             <UserPlus size={28} />
@@ -132,13 +132,16 @@ export default function RegisterPage({ searchParams }) {
               />
             </div>
           </div>
-          <SubmitButton className="btn-primary w-full gap-2 py-3" pendingText="Membuat akun...">
+          <SubmitButton
+            className="btn-primary w-full gap-2 py-3"
+            pendingText="Membuat akun..."
+          >
             Daftar
           </SubmitButton>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          Sudah punya akun?{' '}
+          Sudah punya akun?{" "}
           <Link href="/login" className="font-semibold text-blue-600">
             Login
           </Link>

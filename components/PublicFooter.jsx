@@ -17,7 +17,7 @@ export default function PublicFooter() {
       <div className="public-frame grid gap-8 py-10 md:grid-cols-[1.3fr_0.8fr_1fr]">
         <div>
           <Link href="/" aria-label="Integral" className="inline-flex">
-            <Logo className="h-12 w-auto" />
+            <Logo className="h-20 w-auto" />
           </Link>
           <p className="mt-4 max-w-md text-sm leading-7 text-slate-600">
             Platform simulasi ujian matematika dari Bimbel Integral untuk
