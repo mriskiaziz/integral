@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Eye } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import Logo from "@/components/Logo";
 import SubmitButton from "@/components/SubmitButton";
+import { AUTH_COOKIE, createSessionToken, SESSION_MAX_AGE } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 async function login(formData) {
@@ -16,8 +18,17 @@ async function login(formData) {
   if (!user) redirect("/login?error=1");
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) redirect("/login?error=1");
+
+  cookies().set(AUTH_COOKIE, await createSessionToken(user), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+  });
+
   if (user.role === "ADMIN") redirect("/admin");
-  redirect(`/user?userId=${user.id}`);
+  redirect("/user");
 }
 
 export default function LoginPage({ searchParams }) {
@@ -36,7 +47,9 @@ export default function LoginPage({ searchParams }) {
 
         {searchParams?.error && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Username atau password salah.
+            {searchParams.error === "unauthorized"
+              ? "Silakan login terlebih dahulu."
+              : "Username atau password salah."}
           </div>
         )}
 

@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req, { params }) {
-  const { answers, userId } = await req.json();
+  const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
+
+  if (!auth) {
+    return NextResponse.json({ error: 'Silakan login terlebih dahulu' }, { status: 401 });
+  }
+
+  const { answers } = await req.json();
   const session = await prisma.examSession.findUnique({
     where: { id: params.sessionId },
     include: { package: true },
@@ -12,6 +20,10 @@ export async function POST(req, { params }) {
 
   if (!session) {
     return NextResponse.json({ error: 'Session tidak ditemukan' }, { status: 404 });
+  }
+
+  if (auth.role !== 'ADMIN' && session.userId !== auth.userId) {
+    return NextResponse.json({ error: 'Tidak memiliki akses ke sesi ini' }, { status: 403 });
   }
 
   const questions = await prisma.examQuestion.findMany({
@@ -52,7 +64,7 @@ export async function POST(req, { params }) {
       },
       create: {
         sessionId: session.id,
-        userId,
+        userId: session.userId,
         questionId: question.id,
         selectedOptionId,
         isCorrect,

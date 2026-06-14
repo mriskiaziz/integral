@@ -102,7 +102,7 @@ export default function AdminLayout({ children }) {
           );
         })}
         <Link
-          href="/login"
+          href="/logout"
           onClick={closeMenu}
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-semibold text-blue-50 hover:bg-white/10"
         >

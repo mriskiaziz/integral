@@ -1,9 +1,14 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import PublicHeader from '@/components/PublicHeader';
+import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export default async function ResultPage({ params, searchParams }) {
+export default async function ResultPage({ params }) {
+  const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
+  if (!auth) redirect('/login?error=unauthorized');
+
   const session = await prisma.examSession.findUnique({
     where: { id: params.sessionId },
     include: {
@@ -15,12 +20,13 @@ export default async function ResultPage({ params, searchParams }) {
   });
 
   if (!session) redirect('/login');
+  if (auth.role !== 'ADMIN' && session.userId !== auth.userId) redirect('/user');
 
   const passed = Number(session.score || 0) >= session.package.passingScore;
 
   return (
     <main className="shell min-h-screen">
-      <PublicHeader active="Paket Ujian" userId={searchParams.userId} />
+      <PublicHeader active="Paket Ujian" userId={auth.userId} />
       <section className="public-frame py-10">
         <div className="card mx-auto max-w-4xl p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -57,7 +63,7 @@ export default async function ResultPage({ params, searchParams }) {
             ))}
           </div>
 
-          <Link href={`/user?userId=${searchParams.userId}`} className="btn-secondary mt-8">
+          <Link href="/user" className="btn-secondary mt-8">
             Kembali
           </Link>
         </div>

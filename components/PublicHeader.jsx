@@ -9,7 +9,7 @@ const links = [
 ];
 
 export default function PublicHeader({ active = 'Beranda', userId }) {
-  const loginHref = userId ? `/user?userId=${userId}` : '/login';
+  const loginHref = userId ? '/user' : '/login';
 
   return (
     <header className="public-header">

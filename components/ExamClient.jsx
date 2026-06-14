@@ -49,7 +49,7 @@ export default function ExamClient({ session, questions, userId }) {
     });
 
     if (res.ok) {
-      router.push(`/user/result/${session.id}?userId=${userId}`);
+      router.push(`/user/result/${session.id}`);
       return;
     }
 

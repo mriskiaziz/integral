@@ -1,13 +1,19 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { Info, ClipboardList } from 'lucide-react';
 import PublicHeader from '@/components/PublicHeader';
+import SubmitButton from '@/components/SubmitButton';
+import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { formatDate } from '@/lib/utils';
 
 async function enterCode(formData) {
   'use server';
 
-  const userId = String(formData.get('userId'));
+  const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
+  if (!auth) redirect('/login?error=unauthorized');
+
+  const userId = auth.userId;
   const codeText = String(formData.get('code')).trim().toUpperCase();
   const accessCode = await prisma.accessCode.findUnique({
     where: { code: codeText },
@@ -15,11 +21,11 @@ async function enterCode(formData) {
   });
 
   if (!accessCode || !accessCode.isActive) {
-    redirect(`/user?userId=${userId}&error=code`);
+    redirect('/user?error=code');
   }
 
   if (accessCode.maxUsers && accessCode._count.sessions >= accessCode.maxUsers) {
-    redirect(`/user?userId=${userId}&error=full`);
+    redirect('/user?error=full');
   }
 
   const previousAttempts = await prisma.examSession.count({
@@ -27,7 +33,7 @@ async function enterCode(formData) {
   });
 
   if (previousAttempts >= accessCode.maxAttempts) {
-    redirect(`/user?userId=${userId}&error=attempt`);
+    redirect('/user?error=attempt');
   }
 
   const session = await prisma.examSession.create({
@@ -39,7 +45,7 @@ async function enterCode(formData) {
     },
   });
 
-  redirect(`/user/confirm/${session.id}?userId=${userId}`);
+  redirect(`/user/confirm/${session.id}`);
 }
 
 function errorText(code) {
@@ -50,21 +56,21 @@ function errorText(code) {
 }
 
 export default async function UserDashboard({ searchParams }) {
-  const userId = searchParams?.userId;
-  const user = userId
-    ? await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          sessions: {
-            include: { package: true, accessCode: true },
-            orderBy: { createdAt: 'desc' },
-            take: 5,
-          },
-        },
-      })
-    : null;
+  const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
+  if (!auth) redirect('/login?error=unauthorized');
 
-  if (!user) redirect('/login');
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    include: {
+      sessions: {
+        include: { package: true, accessCode: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      },
+    },
+  });
+
+  if (!user) redirect('/logout');
   const message = errorText(searchParams?.error);
 
   return (
@@ -73,7 +79,6 @@ export default async function UserDashboard({ searchParams }) {
       <section className="flex min-h-[calc(100vh-82px)] items-center justify-center px-4 py-10">
         <div className="w-full max-w-lg">
           <form action={enterCode} className="card px-8 py-9 text-center shadow-xl">
-            <input type="hidden" name="userId" value={user.id} />
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-600 text-white">
               <ClipboardList size={38} />
             </div>
@@ -93,7 +98,9 @@ export default async function UserDashboard({ searchParams }) {
               placeholder="Contoh: INTEG2024"
               required
             />
-            <button className="btn-primary mt-4 w-full py-3">Mulai Ujian</button>
+            <SubmitButton className="btn-primary mt-4 w-full gap-2 py-3" pendingText="Memulai...">
+              Mulai Ujian
+            </SubmitButton>
             <div className="mt-6 flex items-start gap-3 rounded-md bg-blue-50 px-4 py-4 text-left text-xs leading-5 text-slate-600">
               <Info size={16} className="mt-0.5 shrink-0 text-blue-600" />
               <span>

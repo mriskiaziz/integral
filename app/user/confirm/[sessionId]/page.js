@@ -1,22 +1,34 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import PublicHeader from '@/components/PublicHeader';
+import SubmitButton from '@/components/SubmitButton';
+import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 async function startExam(formData) {
   'use server';
 
+  const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
+  if (!auth) redirect('/login?error=unauthorized');
+
   const sessionId = String(formData.get('sessionId'));
-  const userId = String(formData.get('userId'));
+  const session = await prisma.examSession.findUnique({ where: { id: sessionId } });
+
+  if (!session) redirect('/user');
+  if (auth.role !== 'ADMIN' && session.userId !== auth.userId) redirect('/user');
 
   await prisma.examSession.update({
     where: { id: sessionId },
     data: { status: 'IN_PROGRESS', startedAt: new Date() },
   });
 
-  redirect(`/user/exam/${sessionId}?userId=${userId}`);
+  redirect(`/user/exam/${sessionId}`);
 }
 
-export default async function ConfirmPage({ params, searchParams }) {
+export default async function ConfirmPage({ params }) {
+  const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
+  if (!auth) redirect('/login?error=unauthorized');
+
   const session = await prisma.examSession.findUnique({
     where: { id: params.sessionId },
     include: {
@@ -27,10 +39,11 @@ export default async function ConfirmPage({ params, searchParams }) {
   });
 
   if (!session) redirect('/login');
+  if (auth.role !== 'ADMIN' && session.userId !== auth.userId) redirect('/user');
 
   return (
     <main className="shell min-h-screen">
-      <PublicHeader active="Paket Ujian" userId={searchParams.userId} />
+      <PublicHeader active="Paket Ujian" userId={auth.userId} />
       <section className="public-frame py-10">
         <div className="card mx-auto max-w-3xl p-8">
           <h1 className="text-2xl font-black">Konfirmasi Ujian</h1>
@@ -60,8 +73,9 @@ export default async function ConfirmPage({ params, searchParams }) {
 
           <form action={startExam} className="mt-8">
             <input type="hidden" name="sessionId" value={session.id} />
-            <input type="hidden" name="userId" value={searchParams.userId} />
-            <button className="btn-primary">Mulai Ujian</button>
+            <SubmitButton className="btn-primary gap-2" pendingText="Memulai...">
+              Mulai Ujian
+            </SubmitButton>
           </form>
         </div>
       </section>
