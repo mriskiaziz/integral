@@ -1,4 +1,3 @@
-import AdminLayout from '@/components/AdminLayout';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { prisma } from '@/lib/prisma';
@@ -15,7 +14,7 @@ async function createUser(formData) {
 export default async function UsersPage() {
   const users = await prisma.user.findMany({ where: { role: 'PESERTA' }, include: { _count: { select: { sessions: true } } }, orderBy: { createdAt: 'desc' } });
   return (
-    <AdminLayout>
+    <>
       <PageHeader title="Peserta" description="Kelola akun peserta ujian Integral." />
       <div className="grid gap-5 lg:grid-cols-3">
         <form action={createUser} className="card space-y-4 p-5">
@@ -57,6 +56,6 @@ export default async function UsersPage() {
           </table>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }

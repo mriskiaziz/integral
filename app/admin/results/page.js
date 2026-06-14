@@ -1,4 +1,3 @@
-import AdminLayout from '@/components/AdminLayout';
 import PageHeader from '@/components/PageHeader';
 import { prisma } from '@/lib/prisma';
 import { formatDate } from '@/lib/utils';
@@ -11,7 +10,7 @@ export default async function ResultsPage() {
   });
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title="Hasil Ujian" description="Rekap nilai peserta yang sudah selesai ujian." />
       <div className="card overflow-hidden">
         <table className="w-full">
@@ -41,6 +40,6 @@ export default async function ResultsPage() {
           </tbody>
         </table>
       </div>
-    </AdminLayout>
+    </>
   );
 }

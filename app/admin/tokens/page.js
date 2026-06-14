@@ -1,4 +1,3 @@
-import AdminLayout from '@/components/AdminLayout';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { prisma } from '@/lib/prisma';
@@ -32,7 +31,7 @@ export default async function TokensPage() {
   ]);
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title="Kode Ujian" description="Buat kode untuk peserta masuk ke ujian." />
       <div className="grid gap-5 lg:grid-cols-3">
         <form action={createAccessCode} className="card space-y-4 p-5">
@@ -102,6 +101,6 @@ export default async function TokensPage() {
           </table>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }

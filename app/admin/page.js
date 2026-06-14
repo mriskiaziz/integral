@@ -1,4 +1,3 @@
-import AdminLayout from '@/components/AdminLayout';
 import { prisma } from '@/lib/prisma';
 import { formatDate } from '@/lib/utils';
 
@@ -32,7 +31,7 @@ export default async function AdminDashboard() {
   const maxParticipants = Math.max(...packages.map((item) => item._count.sessions), 1);
 
   return (
-    <AdminLayout>
+    <>
       <h1 className="mb-7 text-2xl font-black text-slate-950">Dashboard</h1>
 
       <div className="grid gap-5 md:grid-cols-4">
@@ -111,6 +110,6 @@ export default async function AdminDashboard() {
           </div>
         </section>
       </div>
-    </AdminLayout>
+    </>
   );
 }

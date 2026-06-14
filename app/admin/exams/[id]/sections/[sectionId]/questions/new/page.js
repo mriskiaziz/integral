@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import AdminLayout from '@/components/AdminLayout';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { prisma } from '@/lib/prisma';
@@ -37,7 +36,7 @@ export default async function NewQuestionPage({ params }) {
   const item = await prisma.examPackage.findUnique({ where: { id: params.id } });
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title="Tambah Soal" description={`Paket: ${item?.title || '-'}`} />
       <form action={createQuestion} className="card grid gap-6 p-6 lg:grid-cols-2">
         <input type="hidden" name="packageId" value={params.id} />
@@ -92,6 +91,6 @@ export default async function NewQuestionPage({ params }) {
           </SubmitButton>
         </div>
       </form>
-    </AdminLayout>
+    </>
   );
 }

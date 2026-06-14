@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import AdminLayout from '@/components/AdminLayout';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { prisma } from '@/lib/prisma';
@@ -24,15 +23,11 @@ export default async function ExamDetailPage({ params }) {
   });
 
   if (!item) {
-    return (
-      <AdminLayout>
-        <p>Data tidak ditemukan</p>
-      </AdminLayout>
-    );
+    return <p>Data tidak ditemukan</p>;
   }
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         title={`Detail Paket: ${item.title}`}
         description={`${item.level} - ${item.questions.length} soal - ${item.durationMinutes} menit`}
@@ -106,6 +101,6 @@ export default async function ExamDetailPage({ params }) {
           </table>
         </section>
       </div>
-    </AdminLayout>
+    </>
   );
 }

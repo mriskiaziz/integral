@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import AdminLayout from '@/components/AdminLayout';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { prisma } from '@/lib/prisma';
@@ -42,7 +41,7 @@ export default async function ExamsPage() {
   });
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         title="Paket Ujian"
         description="Kelola paket tryout Integral untuk SD, SMP, dan SMA."
@@ -119,6 +118,6 @@ export default async function ExamsPage() {
           </table>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }
