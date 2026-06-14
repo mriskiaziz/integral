@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PESERTA
+}
+
+enum SessionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  FINISHED
+  EXPIRED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  username  String   @unique
+  password  String
+  role      Role     @default(PESERTA)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  packages ExamPackage[]       @relation("PackageCreator")
+  sessions ExamSession[]
+  answers  ParticipantAnswer[]
+}
+
+model ExamPackage {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  level           String
+  description     String?
+  price           Int
+  durationMinutes Int
+  passingScore    Int      @default(70)
+  isActive        Boolean  @default(true)
+  creatorId       String?
+  creator         User?    @relation("PackageCreator", fields: [creatorId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  questions   ExamQuestion[]
+  accessCodes AccessCode[]
+  sessions    ExamSession[]
+}
+
+model ExamQuestion {
+  id          String      @id @default(cuid())
+  packageId   String
+  package     ExamPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  content     String
+  explanation String?
+  score       Float       @default(1)
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  options AnswerOption[]
+  answers ParticipantAnswer[]
+
+  @@index([packageId])
+}
+
+model AnswerOption {
+  id         String       @id @default(cuid())
+  questionId String
+  question   ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  label      String
+  content    String
+  isCorrect  Boolean      @default(false)
+  order      Int          @default(0)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  answers ParticipantAnswer[]
+
+  @@index([questionId])
+}
+
+model AccessCode {
+  id              String      @id @default(cuid())
+  code            String      @unique
+  name            String
+  packageId       String
+  package         ExamPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  durationMinutes Int
+  maxAttempts     Int         @default(1)
+  maxUsers        Int?
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  sessions ExamSession[]
+
+  @@index([packageId])
+}
+
+model ExamSession {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageId       String
+  package         ExamPackage   @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  accessCodeId    String
+  accessCode      AccessCode    @relation(fields: [accessCodeId], references: [id], onDelete: Cascade)
+  startedAt       DateTime?
+  endedAt         DateTime?
+  status          SessionStatus @default(NOT_STARTED)
+  score           Float?
+  correctCount    Int?
+  wrongCount      Int?
+  unansweredCount Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  answers ParticipantAnswer[]
+
+  @@index([userId])
+  @@index([packageId])
+  @@index([accessCodeId])
+}
+
+model ParticipantAnswer {
+  id               String        @id @default(cuid())
+  sessionId        String
+  session          ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         ExamQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?
+  selectedOption   AnswerOption? @relation(fields: [selectedOptionId], references: [id])
+  isCorrect        Boolean?
+  score            Float?
+  answeredAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([sessionId, questionId])
+  @@index([userId])
+  @@index([questionId])
+}
