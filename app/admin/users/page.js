@@ -1,18 +1,29 @@
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
-import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { apiGet, apiPost } from '@/lib/internalApi';
 import { revalidatePath } from 'next/cache';
 
 async function createUser(formData) {
   'use server';
-  const password = await bcrypt.hash(String(formData.get('password') || '123456'), 10);
-  await prisma.user.create({ data: { name: String(formData.get('name')), username: String(formData.get('username')), password, role: 'PESERTA' } });
+  await apiPost('/api/user', {
+    name: String(formData.get('name')),
+    username: String(formData.get('username')),
+    password: String(formData.get('password') || '123456'),
+    role: 'PESERTA',
+  });
   revalidatePath('/admin/users');
 }
 
 export default async function UsersPage() {
-  const users = await prisma.user.findMany({ where: { role: 'PESERTA' }, include: { _count: { select: { sessions: true } } }, orderBy: { createdAt: 'desc' } });
+  const [userItems, sessions] = await Promise.all([
+    apiGet('/api/user?role=PESERTA'),
+    apiGet('/api/examsession'),
+  ]);
+  const sessionCounts = sessions.reduce((counts, session) => {
+    counts.set(session.userId, (counts.get(session.userId) || 0) + 1);
+    return counts;
+  }, new Map());
+  const users = userItems.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   return (
     <>
       <PageHeader title="Peserta" description="Kelola akun peserta ujian Integral." />
@@ -49,7 +60,7 @@ export default async function UsersPage() {
                 <tr key={u.id}>
                   <td className="table-td font-medium">{u.name}</td>
                   <td className="table-td">{u.username}</td>
-                  <td className="table-td">{u._count.sessions}</td>
+                  <td className="table-td">{sessionCounts.get(u.id) || 0}</td>
                 </tr>
               ))}
             </tbody>

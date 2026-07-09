@@ -1,34 +1,42 @@
-import { prisma } from '@/lib/prisma';
+import { apiGet } from '@/lib/internalApi';
 import { formatDate } from '@/lib/utils';
 
 export default async function AdminDashboard() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [totalPackages, totalQuestions, totalUsers, todaySessions, latestSessions, packages] =
-    await Promise.all([
-      prisma.examPackage.count(),
-      prisma.examQuestion.count(),
-      prisma.user.count({ where: { role: 'PESERTA' } }),
-      prisma.examSession.count({ where: { createdAt: { gte: today } } }),
-      prisma.examSession.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        include: { user: true, package: true },
-      }),
-      prisma.examPackage.findMany({
-        include: { _count: { select: { sessions: true } } },
-        orderBy: { price: 'asc' },
-      }),
-    ]);
+  const [packages, questions, users, sessions] = await Promise.all([
+    apiGet('/api/exampackage'),
+    apiGet('/api/examquestion'),
+    apiGet('/api/user?role=PESERTA'),
+    apiGet('/api/examsession'),
+  ]);
 
-  const finished = await prisma.examSession.findMany({
-    where: { status: 'FINISHED' },
-    include: { package: true },
-  });
-  const passed = finished.filter((session) => Number(session.score || 0) >= session.package.passingScore).length;
+  const packageMap = new Map(packages.map((item) => [item.id, item]));
+  const userMap = new Map(users.map((item) => [item.id, item]));
+  const sessionCounts = sessions.reduce((counts, session) => {
+    counts.set(session.packageId, (counts.get(session.packageId) || 0) + 1);
+    return counts;
+  }, new Map());
+  const latestSessions = sessions
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 5)
+    .map((session) => ({
+      ...session,
+      user: userMap.get(session.userId),
+      package: packageMap.get(session.packageId),
+    }));
+  const finished = sessions.filter((session) => session.status === 'FINISHED');
+  const passed = finished.filter((session) => {
+    const packageItem = packageMap.get(session.packageId);
+    return packageItem && Number(session.score || 0) >= packageItem.passingScore;
+  }).length;
   const passRate = finished.length ? Math.round((passed / finished.length) * 100) : 0;
-  const maxParticipants = Math.max(...packages.map((item) => item._count.sessions), 1);
+  const totalPackages = packages.length;
+  const totalQuestions = questions.length;
+  const totalUsers = users.length;
+  const todaySessions = sessions.filter((session) => new Date(session.createdAt) >= today).length;
+  const maxParticipants = Math.max(...packages.map((item) => sessionCounts.get(item.id) || 0), 1);
 
   return (
     <>
@@ -64,8 +72,8 @@ export default async function AdminDashboard() {
           <tbody>
             {latestSessions.map((session) => (
               <tr key={session.id}>
-                <td className="table-td font-semibold">{session.package.title}</td>
-                <td className="table-td">{session.user.name}</td>
+                <td className="table-td font-semibold">{session.package?.title || '-'}</td>
+                <td className="table-td">{session.user?.name || '-'}</td>
                 <td className="table-td">{formatDate(session.createdAt)}</td>
                 <td className="table-td">
                   <a className="font-semibold text-blue-600" href="/admin/results">
@@ -82,11 +90,15 @@ export default async function AdminDashboard() {
         <section className="card p-6">
           <h2 className="font-black">Peserta per Ujian</h2>
           <div className="mt-8 flex h-56 items-end gap-7 border-b border-slate-200 px-2">
-            {packages.map((item) => (
+            {packages
+              .sort((a, b) => a.price - b.price)
+              .map((item) => (
               <div key={item.id} className="flex flex-1 flex-col items-center gap-3">
                 <div
                   className="w-full max-w-10 rounded-t-md bg-blue-600"
-                  style={{ height: `${Math.max((item._count.sessions / maxParticipants) * 180, 10)}px` }}
+                  style={{
+                    height: `${Math.max(((sessionCounts.get(item.id) || 0) / maxParticipants) * 180, 10)}px`,
+                  }}
                 />
                 <span className="text-xs text-slate-500">{item.level}</span>
               </div>

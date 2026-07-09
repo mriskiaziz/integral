@@ -1,23 +1,24 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { Eye } from "lucide-react";
-import { prisma } from "@/lib/prisma";
 import Logo from "@/components/Logo";
+import PasswordInput from "@/components/PasswordInput";
 import SubmitButton from "@/components/SubmitButton";
 import { AUTH_COOKIE, createSessionToken, SESSION_MAX_AGE } from "@/lib/auth";
-import bcrypt from "bcryptjs";
+import { apiPost } from "@/lib/internalApi";
 
 async function login(formData) {
   "use server";
 
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
-  const user = await prisma.user.findUnique({ where: { username } });
+  let user;
 
-  if (!user) redirect("/login?error=1");
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) redirect("/login?error=1");
+  try {
+    user = await apiPost("/api/auth/login", { username, password });
+  } catch {
+    redirect("/login?error=1");
+  }
 
   cookies().set(AUTH_COOKIE, await createSessionToken(user), {
     httpOnly: true,
@@ -67,20 +68,7 @@ export default function LoginPage({ searchParams }) {
             autoComplete="username"
             required
           />
-          <div className="relative">
-            <input
-              name="password"
-              type="password"
-              className="input pr-11"
-              placeholder="Password"
-              autoComplete="current-password"
-              required
-            />
-            <Eye
-              size={18}
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-          </div>
+          <PasswordInput />
           <SubmitButton
             className="btn-primary w-full gap-2 py-3"
             pendingText="Masuk..."

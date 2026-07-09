@@ -19,11 +19,15 @@ Aplikasi simulasi ujian untuk TOEFL, CPNS, UTBK, dan ujian lain.
 
 ```bash
 npm install
+copy .env.example .env
 npx prisma generate
 npx prisma migrate dev --name init
 npm run db:seed
 npm run dev
 ```
+
+Isi `DATABASE_URL` di file `.env` dengan koneksi PostgreSQL sebelum menjalankan
+Prisma migrate.
 
 Buka:
 
@@ -50,7 +54,7 @@ password: peserta123
 Token demo:
 
 ```txt
-TOEFL-A1
+INTEG-SD
 ```
 
 ## Catatan

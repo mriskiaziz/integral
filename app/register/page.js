@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Eye, UserPlus } from "lucide-react";
-import bcrypt from "bcryptjs";
 import Logo from "@/components/Logo";
 import SubmitButton from "@/components/SubmitButton";
-import { prisma } from "@/lib/prisma";
+import { apiGet, apiPost } from "@/lib/internalApi";
 
 async function register(formData) {
   "use server";
@@ -26,19 +25,16 @@ async function register(formData) {
     redirect("/register?error=confirm");
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { username } });
-  if (existingUser) {
+  const existingUsers = await apiGet(`/api/user?username=${encodeURIComponent(username)}`);
+  if (existingUsers.length > 0) {
     redirect("/register?error=username");
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  await prisma.user.create({
-    data: {
-      name,
-      username,
-      password: hashedPassword,
-      role: "PESERTA",
-    },
+  await apiPost("/api/user", {
+    name,
+    username,
+    password,
+    role: "PESERTA",
   });
 
   redirect("/login?registered=1");

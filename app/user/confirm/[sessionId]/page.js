@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import PublicHeader from '@/components/PublicHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { apiGet, apiPut } from '@/lib/internalApi';
 
 async function startExam(formData) {
   'use server';
@@ -12,14 +12,20 @@ async function startExam(formData) {
   if (!auth) redirect('/login?error=unauthorized');
 
   const sessionId = String(formData.get('sessionId'));
-  const session = await prisma.examSession.findUnique({ where: { id: sessionId } });
+  let session;
+
+  try {
+    session = await apiGet(`/api/examsession?id=${sessionId}`);
+  } catch {
+    redirect('/user');
+  }
 
   if (!session) redirect('/user');
   if (auth.role !== 'ADMIN' && session.userId !== auth.userId) redirect('/user');
 
-  await prisma.examSession.update({
-    where: { id: sessionId },
-    data: { status: 'IN_PROGRESS', startedAt: new Date() },
+  await apiPut(`/api/examsession?id=${sessionId}`, {
+    status: 'IN_PROGRESS',
+    startedAt: new Date().toISOString(),
   });
 
   redirect(`/user/exam/${sessionId}`);
@@ -29,17 +35,23 @@ export default async function ConfirmPage({ params }) {
   const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
   if (!auth) redirect('/login?error=unauthorized');
 
-  const session = await prisma.examSession.findUnique({
-    where: { id: params.sessionId },
-    include: {
-      user: true,
-      accessCode: true,
-      package: { include: { _count: { select: { questions: true } } } },
-    },
-  });
+  let session;
+
+  try {
+    session = await apiGet(`/api/examsession?id=${params.sessionId}`);
+  } catch {
+    redirect('/login');
+  }
 
   if (!session) redirect('/login');
   if (auth.role !== 'ADMIN' && session.userId !== auth.userId) redirect('/user');
+
+  const [user, accessCode, packageItem, questions] = await Promise.all([
+    apiGet(`/api/user?id=${session.userId}`),
+    apiGet(`/api/accesscode?id=${session.accessCodeId}`),
+    apiGet(`/api/exampackage?id=${session.packageId}`),
+    apiGet(`/api/examquestion?packageId=${session.packageId}`),
+  ]);
 
   return (
     <main className="shell min-h-screen">
@@ -53,12 +65,12 @@ export default async function ConfirmPage({ params }) {
 
           <div className="mt-8 grid gap-5 md:grid-cols-2">
             <div className="space-y-3 text-sm">
-              <p><b>Nama Peserta:</b> {session.user.name}</p>
-              <p><b>Nama Ujian:</b> {session.accessCode.name}</p>
-              <p><b>Paket:</b> {session.package.title}</p>
-              <p><b>Level:</b> {session.package.level}</p>
-              <p><b>Durasi:</b> {session.accessCode.durationMinutes} menit</p>
-              <p><b>Jumlah Soal:</b> {session.package._count.questions}</p>
+              <p><b>Nama Peserta:</b> {user.name}</p>
+              <p><b>Nama Ujian:</b> {accessCode.name}</p>
+              <p><b>Paket:</b> {packageItem.title}</p>
+              <p><b>Level:</b> {packageItem.level}</p>
+              <p><b>Durasi:</b> {accessCode.durationMinutes} menit</p>
+              <p><b>Jumlah Soal:</b> {questions.length}</p>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">

@@ -11,15 +11,19 @@ import {
 } from 'lucide-react';
 import PublicHeader from '@/components/PublicHeader';
 import PublicFooter from '@/components/PublicFooter';
-import { prisma } from '@/lib/prisma';
+import { apiGet } from '@/lib/internalApi';
 import { formatCurrency } from '@/lib/utils';
 
 export default async function Home() {
-  const packages = await prisma.examPackage.findMany({
-    where: { isActive: true },
-    orderBy: { price: 'asc' },
-    include: { _count: { select: { questions: true } } },
-  });
+  const [packageItems, questions] = await Promise.all([
+    apiGet('/api/exampackage?isActive=true'),
+    apiGet('/api/examquestion'),
+  ]);
+  const questionCounts = questions.reduce((counts, question) => {
+    counts.set(question.packageId, (counts.get(question.packageId) || 0) + 1);
+    return counts;
+  }, new Map());
+  const packages = packageItems.sort((a, b) => a.price - b.price);
 
   return (
     <main className="shell">
@@ -112,7 +116,7 @@ export default async function Home() {
               </div>
               <div className="mt-7 space-y-4 text-left text-sm text-slate-700">
                 {[
-                  `${item._count.questions} Soal Pilihan Ganda`,
+                  `${questionCounts.get(item.id) || 0} Soal Pilihan Ganda`,
                   `${item.durationMinutes} Menit`,
                   'Hasil Instan',
                 ].map((feature) => (

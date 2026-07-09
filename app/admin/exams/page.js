@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
-import { prisma } from '@/lib/prisma';
+import { apiGet, apiPost } from '@/lib/internalApi';
 import { formatCurrency } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 
@@ -17,17 +17,15 @@ async function createPackage(formData) {
   'use server';
 
   const title = String(formData.get('title'));
-  await prisma.examPackage.create({
-    data: {
-      title,
-      slug: `${slugify(title)}-${Date.now()}`,
-      level: String(formData.get('level')),
-      description: String(formData.get('description') || ''),
-      price: Number(formData.get('price') || 0),
-      durationMinutes: Number(formData.get('durationMinutes') || 60),
-      passingScore: Number(formData.get('passingScore') || 70),
-      isActive: formData.get('isActive') === 'on',
-    },
+  await apiPost('/api/exampackage', {
+    title,
+    slug: `${slugify(title)}-${Date.now()}`,
+    level: String(formData.get('level')),
+    description: String(formData.get('description') || ''),
+    price: Number(formData.get('price') || 0),
+    durationMinutes: Number(formData.get('durationMinutes') || 60),
+    passingScore: Number(formData.get('passingScore') || 70),
+    isActive: formData.get('isActive') === 'on',
   });
 
   revalidatePath('/admin/exams');
@@ -35,10 +33,26 @@ async function createPackage(formData) {
 }
 
 export default async function ExamsPage() {
-  const packages = await prisma.examPackage.findMany({
-    include: { _count: { select: { questions: true, accessCodes: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
+  const [packageItems, questions, accessCodes] = await Promise.all([
+    apiGet('/api/exampackage'),
+    apiGet('/api/examquestion'),
+    apiGet('/api/accesscode'),
+  ]);
+  const questionCounts = questions.reduce((counts, question) => {
+    counts.set(question.packageId, (counts.get(question.packageId) || 0) + 1);
+    return counts;
+  }, new Map());
+  const codeCounts = accessCodes.reduce((counts, code) => {
+    counts.set(code.packageId, (counts.get(code.packageId) || 0) + 1);
+    return counts;
+  }, new Map());
+  const packages = packageItems
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((item) => ({
+      ...item,
+      questionCount: questionCounts.get(item.id) || 0,
+      accessCodeCount: codeCounts.get(item.id) || 0,
+    }));
 
   return (
     <>
@@ -106,7 +120,7 @@ export default async function ExamsPage() {
                   <td className="table-td font-semibold">{item.title}</td>
                   <td className="table-td">{item.level}</td>
                   <td className="table-td">{formatCurrency(item.price)}</td>
-                  <td className="table-td">{item._count.questions}</td>
+                  <td className="table-td">{item.questionCount}</td>
                   <td className="table-td">
                     <Link className="font-semibold text-blue-600" href={`/admin/exams/${item.id}`}>
                       Detail

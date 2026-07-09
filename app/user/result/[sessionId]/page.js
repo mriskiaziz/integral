@@ -3,26 +3,30 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import PublicHeader from '@/components/PublicHeader';
 import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { apiGet } from '@/lib/internalApi';
 
 export default async function ResultPage({ params }) {
   const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
   if (!auth) redirect('/login?error=unauthorized');
 
-  const session = await prisma.examSession.findUnique({
-    where: { id: params.sessionId },
-    include: {
-      user: true,
-      package: true,
-      accessCode: true,
-      answers: { include: { question: true } },
-    },
-  });
+  let session;
+
+  try {
+    session = await apiGet(`/api/examsession?id=${params.sessionId}`);
+  } catch {
+    redirect('/login');
+  }
 
   if (!session) redirect('/login');
   if (auth.role !== 'ADMIN' && session.userId !== auth.userId) redirect('/user');
 
-  const passed = Number(session.score || 0) >= session.package.passingScore;
+  const [user, packageItem, accessCode] = await Promise.all([
+    apiGet(`/api/user?id=${session.userId}`),
+    apiGet(`/api/exampackage?id=${session.packageId}`),
+    apiGet(`/api/accesscode?id=${session.accessCodeId}`),
+  ]);
+
+  const passed = Number(session.score || 0) >= packageItem.passingScore;
 
   return (
     <main className="shell min-h-screen">
@@ -36,9 +40,9 @@ export default async function ResultPage({ params }) {
                 Ujian berhasil diselesaikan.
               </p>
               <div className="mt-6 space-y-2 text-sm">
-                <p><b>Nama:</b> {session.user.name}</p>
-                <p><b>Ujian:</b> {session.accessCode.name}</p>
-                <p><b>Paket:</b> {session.package.title}</p>
+                <p><b>Nama:</b> {user.name}</p>
+                <p><b>Ujian:</b> {accessCode.name}</p>
+                <p><b>Paket:</b> {packageItem.title}</p>
               </div>
             </div>
             <div className="rounded-lg bg-blue-50 px-10 py-8 text-center">

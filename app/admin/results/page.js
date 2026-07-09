@@ -1,13 +1,25 @@
 import PageHeader from '@/components/PageHeader';
-import { prisma } from '@/lib/prisma';
+import { apiGet } from '@/lib/internalApi';
 import { formatDate } from '@/lib/utils';
 
 export default async function ResultsPage() {
-  const sessions = await prisma.examSession.findMany({
-    where: { status: 'FINISHED' },
-    include: { user: true, package: true, accessCode: true },
-    orderBy: { endedAt: 'desc' },
-  });
+  const [sessionItems, users, packages, accessCodes] = await Promise.all([
+    apiGet('/api/examsession?status=FINISHED'),
+    apiGet('/api/user'),
+    apiGet('/api/exampackage'),
+    apiGet('/api/accesscode'),
+  ]);
+  const userMap = new Map(users.map((item) => [item.id, item]));
+  const packageMap = new Map(packages.map((item) => [item.id, item]));
+  const accessCodeMap = new Map(accessCodes.map((item) => [item.id, item]));
+  const sessions = sessionItems
+    .sort((a, b) => new Date(b.endedAt || 0) - new Date(a.endedAt || 0))
+    .map((session) => ({
+      ...session,
+      user: userMap.get(session.userId),
+      package: packageMap.get(session.packageId),
+      accessCode: accessCodeMap.get(session.accessCodeId),
+    }));
 
   return (
     <>
@@ -28,9 +40,9 @@ export default async function ResultsPage() {
           <tbody>
             {sessions.map((session) => (
               <tr key={session.id}>
-                <td className="table-td font-semibold">{session.user.name}</td>
-                <td className="table-td">{session.accessCode.name}</td>
-                <td className="table-td">{session.package.title}</td>
+                <td className="table-td font-semibold">{session.user?.name || '-'}</td>
+                <td className="table-td">{session.accessCode?.name || '-'}</td>
+                <td className="table-td">{session.package?.title || '-'}</td>
                 <td className="table-td font-bold">{session.score ?? '-'}</td>
                 <td className="table-td">{session.correctCount}</td>
                 <td className="table-td">{session.wrongCount}</td>

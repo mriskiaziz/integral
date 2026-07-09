@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
-import { prisma } from '@/lib/prisma';
+import { apiGet, apiPost } from '@/lib/internalApi';
 
 async function createQuestion(formData) {
   'use server';
@@ -9,31 +9,38 @@ async function createQuestion(formData) {
   const packageId = String(formData.get('packageId'));
   const correctLabel = String(formData.get('correctLabel') || 'A');
 
-  await prisma.examQuestion.create({
-    data: {
-      packageId,
-      content: String(formData.get('content') || ''),
-      explanation: String(formData.get('explanation') || ''),
-      score: Number(formData.get('score') || 1),
-      order: Number(formData.get('order') || 0),
-      options: {
-        create: ['A', 'B', 'C', 'D', 'E']
-          .map((label, index) => ({
-            label,
-            content: String(formData.get(`option${label}`) || ''),
-            isCorrect: correctLabel === label,
-            order: index + 1,
-          }))
-          .filter((option) => option.content),
-      },
-    },
+  const question = await apiPost('/api/examquestion', {
+    packageId,
+    content: String(formData.get('content') || ''),
+    explanation: String(formData.get('explanation') || ''),
+    score: Number(formData.get('score') || 1),
+    order: Number(formData.get('order') || 0),
   });
+
+  await Promise.all(
+    ['A', 'B', 'C', 'D', 'E']
+      .map((label, index) => ({
+        questionId: question.id,
+        label,
+        content: String(formData.get(`option${label}`) || ''),
+        isCorrect: correctLabel === label,
+        order: index + 1,
+      }))
+      .filter((option) => option.content)
+      .map((option) => apiPost('/api/answeroption', option)),
+  );
 
   redirect(`/admin/exams/${packageId}`);
 }
 
 export default async function NewQuestionPage({ params }) {
-  const item = await prisma.examPackage.findUnique({ where: { id: params.id } });
+  let item;
+
+  try {
+    item = await apiGet(`/api/exampackage?id=${params.id}`);
+  } catch {
+    item = null;
+  }
 
   return (
     <>

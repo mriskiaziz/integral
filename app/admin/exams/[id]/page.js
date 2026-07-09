@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
-import { prisma } from '@/lib/prisma';
+import { apiDelete, apiGet } from '@/lib/internalApi';
 import { revalidatePath } from 'next/cache';
 
 async function deleteQuestion(formData) {
@@ -9,22 +9,44 @@ async function deleteQuestion(formData) {
 
   const id = String(formData.get('id'));
   const packageId = String(formData.get('packageId'));
-  await prisma.examQuestion.delete({ where: { id } });
+  await apiDelete(`/api/examquestion?id=${id}`);
   revalidatePath(`/admin/exams/${packageId}`);
 }
 
 export default async function ExamDetailPage({ params }) {
-  const item = await prisma.examPackage.findUnique({
-    where: { id: params.id },
-    include: {
-      questions: { orderBy: { order: 'asc' }, include: { options: true } },
-      accessCodes: { orderBy: { createdAt: 'desc' } },
-    },
-  });
+  let packageItem;
 
-  if (!item) {
+  try {
+    packageItem = await apiGet(`/api/exampackage?id=${params.id}`);
+  } catch {
+    packageItem = null;
+  }
+
+  if (!packageItem) {
     return <p>Data tidak ditemukan</p>;
   }
+
+  const [questionItems, optionItems, accessCodes] = await Promise.all([
+    apiGet(`/api/examquestion?packageId=${params.id}`),
+    apiGet('/api/answeroption'),
+    apiGet(`/api/accesscode?packageId=${params.id}`),
+  ]);
+  const optionsByQuestion = optionItems.reduce((items, option) => {
+    const current = items.get(option.questionId) || [];
+    current.push(option);
+    items.set(option.questionId, current);
+    return items;
+  }, new Map());
+  const item = {
+    ...packageItem,
+    questions: questionItems
+      .sort((a, b) => a.order - b.order)
+      .map((question) => ({
+        ...question,
+        options: (optionsByQuestion.get(question.id) || []).sort((a, b) => a.order - b.order),
+      })),
+    accessCodes: accessCodes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+  };
 
   return (
     <>

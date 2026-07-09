@@ -1,34 +1,43 @@
 import PageHeader from '@/components/PageHeader';
 import SubmitButton from '@/components/SubmitButton';
-import { prisma } from '@/lib/prisma';
+import { apiGet, apiPost } from '@/lib/internalApi';
 import { revalidatePath } from 'next/cache';
 
 async function createAccessCode(formData) {
   'use server';
 
-  await prisma.accessCode.create({
-    data: {
-      code: String(formData.get('code')).trim().toUpperCase(),
-      name: String(formData.get('name')),
-      packageId: String(formData.get('packageId')),
-      durationMinutes: Number(formData.get('durationMinutes') || 60),
-      maxAttempts: Number(formData.get('maxAttempts') || 1),
-      maxUsers: formData.get('maxUsers') ? Number(formData.get('maxUsers')) : null,
-      isActive: formData.get('isActive') === 'on',
-    },
+  await apiPost('/api/accesscode', {
+    code: String(formData.get('code')).trim().toUpperCase(),
+    name: String(formData.get('name')),
+    packageId: String(formData.get('packageId')),
+    durationMinutes: Number(formData.get('durationMinutes') || 60),
+    maxAttempts: Number(formData.get('maxAttempts') || 1),
+    maxUsers: formData.get('maxUsers') ? Number(formData.get('maxUsers')) : null,
+    isActive: formData.get('isActive') === 'on',
   });
 
   revalidatePath('/admin/tokens');
 }
 
 export default async function TokensPage() {
-  const [codes, packages] = await Promise.all([
-    prisma.accessCode.findMany({
-      include: { package: true, _count: { select: { sessions: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.examPackage.findMany({ orderBy: { title: 'asc' } }),
+  const [codeItems, packageItems, sessions] = await Promise.all([
+    apiGet('/api/accesscode'),
+    apiGet('/api/exampackage'),
+    apiGet('/api/examsession'),
   ]);
+  const packages = packageItems.sort((a, b) => a.title.localeCompare(b.title));
+  const packageMap = new Map(packages.map((item) => [item.id, item]));
+  const sessionCounts = sessions.reduce((counts, session) => {
+    counts.set(session.accessCodeId, (counts.get(session.accessCodeId) || 0) + 1);
+    return counts;
+  }, new Map());
+  const codes = codeItems
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((code) => ({
+      ...code,
+      package: packageMap.get(code.packageId),
+      sessionCount: sessionCounts.get(code.id) || 0,
+    }));
 
   return (
     <>
@@ -92,9 +101,9 @@ export default async function TokensPage() {
                 <tr key={code.id}>
                   <td className="table-td font-bold">{code.code}</td>
                   <td className="table-td">{code.name}</td>
-                  <td className="table-td">{code.package.title}</td>
+                  <td className="table-td">{code.package?.title || '-'}</td>
                   <td className="table-td">{code.durationMinutes} m</td>
-                  <td className="table-td">{code._count.sessions}</td>
+                  <td className="table-td">{code.sessionCount}</td>
                 </tr>
               ))}
             </tbody>

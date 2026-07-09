@@ -4,7 +4,7 @@ import { Info, ClipboardList } from 'lucide-react';
 import PublicHeader from '@/components/PublicHeader';
 import SubmitButton from '@/components/SubmitButton';
 import { AUTH_COOKIE, verifySessionToken } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { apiGet, apiPost } from '@/lib/internalApi';
 import { formatDate } from '@/lib/utils';
 
 async function enterCode(formData) {
@@ -15,34 +15,32 @@ async function enterCode(formData) {
 
   const userId = auth.userId;
   const codeText = String(formData.get('code')).trim().toUpperCase();
-  const accessCode = await prisma.accessCode.findUnique({
-    where: { code: codeText },
-    include: { package: true, _count: { select: { sessions: true } } },
-  });
+  const accessCodes = await apiGet(`/api/accesscode?code=${encodeURIComponent(codeText)}`);
+  const accessCode = accessCodes[0];
 
   if (!accessCode || !accessCode.isActive) {
     redirect('/user?error=code');
   }
 
-  if (accessCode.maxUsers && accessCode._count.sessions >= accessCode.maxUsers) {
+  const codeSessions = await apiGet(`/api/examsession?accessCodeId=${accessCode.id}`);
+
+  if (accessCode.maxUsers && codeSessions.length >= accessCode.maxUsers) {
     redirect('/user?error=full');
   }
 
-  const previousAttempts = await prisma.examSession.count({
-    where: { userId, accessCodeId: accessCode.id },
-  });
+  const previousAttempts = await apiGet(
+    `/api/examsession?userId=${userId}&accessCodeId=${accessCode.id}`,
+  );
 
-  if (previousAttempts >= accessCode.maxAttempts) {
+  if (previousAttempts.length >= accessCode.maxAttempts) {
     redirect('/user?error=attempt');
   }
 
-  const session = await prisma.examSession.create({
-    data: {
-      userId,
-      packageId: accessCode.packageId,
-      accessCodeId: accessCode.id,
-      status: 'NOT_STARTED',
-    },
+  const session = await apiPost('/api/examsession', {
+    userId,
+    packageId: accessCode.packageId,
+    accessCodeId: accessCode.id,
+    status: 'NOT_STARTED',
   });
 
   redirect(`/user/confirm/${session.id}`);
@@ -59,19 +57,25 @@ export default async function UserDashboard({ searchParams }) {
   const auth = await verifySessionToken(cookies().get(AUTH_COOKIE)?.value);
   if (!auth) redirect('/login?error=unauthorized');
 
-  const user = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    include: {
-      sessions: {
-        include: { package: true, accessCode: true },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      },
-    },
-  });
+  const [user, sessions, packages, accessCodes] = await Promise.all([
+    apiGet(`/api/user?id=${auth.userId}`),
+    apiGet(`/api/examsession?userId=${auth.userId}`),
+    apiGet('/api/exampackage'),
+    apiGet('/api/accesscode'),
+  ]);
 
   if (!user) redirect('/logout');
   const message = errorText(searchParams?.error);
+  const packageMap = new Map(packages.map((item) => [item.id, item]));
+  const accessCodeMap = new Map(accessCodes.map((item) => [item.id, item]));
+  const recentSessions = sessions
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 5)
+    .map((session) => ({
+      ...session,
+      package: packageMap.get(session.packageId),
+      accessCode: accessCodeMap.get(session.accessCodeId),
+    }));
 
   return (
     <main className="shell min-h-screen">
@@ -110,16 +114,16 @@ export default async function UserDashboard({ searchParams }) {
             </div>
           </form>
 
-          {user.sessions.length > 0 && (
+          {recentSessions.length > 0 && (
             <div className="card mt-6 overflow-hidden">
               <div className="border-b border-slate-100 px-5 py-4">
                 <h2 className="font-bold">Riwayat Terbaru</h2>
               </div>
               <table className="w-full">
                 <tbody>
-                  {user.sessions.map((session) => (
+                  {recentSessions.map((session) => (
                     <tr key={session.id}>
-                      <td className="table-td font-semibold">{session.package.title}</td>
+                      <td className="table-td font-semibold">{session.package?.title || '-'}</td>
                       <td className="table-td">{session.status}</td>
                       <td className="table-td">{session.score ?? '-'}</td>
                       <td className="table-td">{formatDate(session.createdAt)}</td>
